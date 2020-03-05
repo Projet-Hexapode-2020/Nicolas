@@ -103,9 +103,9 @@ namespace GadgeteerApp1
                 displayText("Rotation: " + value + " degres", GT.Color.White);
 
 
-                tourne(value, 0x01);
+                rotateEngine(value, 0x01);
                 Thread.Sleep(10);
-                tourne(value, 0x02);
+                rotateEngine(value, 0x02);
             
                 Thread.Sleep(200);
             }
@@ -115,9 +115,9 @@ namespace GadgeteerApp1
                 int value = System.Convert.ToInt16(msg.Substring(7));
                 displayText("Speed: " + value + " ms", GT.Color.White);
 
-                vitesseMouv(value,0x01);
+                setSpeed(value,0x01);
                 Thread.Sleep(10);
-                    vitesseMouv(value,0x02);
+                setSpeed(value,0x02);
                 Thread.Sleep(200);
             }
             
@@ -172,17 +172,9 @@ namespace GadgeteerApp1
 
         }
 
-        /*blic void tourne(int degre)
-        {
-           //Angle max : 300°
-           //Angle max en Hexa : 0x3ff
-           //Structure trame : {0xFF,0xFF, ID, LENGTH (nParameters + 2), INSTRUCTION, PARAMETERS, CHECKSUM)
-           //Trame à envoyer : {0xFF,0xFF, 0x01(exemple), PARA, 0x03 (écriture de data), 0x2
+       
 
-        }*/
-
-
-        public void tourne(int degre, byte id)
+        public void rotateEngine(int degre, byte id)
         {
             int valhex = degre * 0x3ff / 300;
             byte[] buffer = new byte[] { 0xFF, 0xFF, id , 0x05, 0x03, 0x1E, 0, 0, 0 };
@@ -190,19 +182,12 @@ namespace GadgeteerApp1
             buffer[6] = (byte)(valhex & 0xff);
             buffer[7] = (byte)(valhex >> 8);
 
-            int CS = 0;
-            int NbOctTrameTourne = 9;
-
-            for (int i = 2; i < NbOctTrameTourne - 1; i++)
-            {
-                CS += buffer[i];
-            }
-
-            buffer[8] = (byte)(~CS & 0xff);
+            calculateCheckSum(3, buffer);
             serie.Write(buffer);
+            getStatusPacket();
         }
 
-        public void vitesseMouv(int speed,byte id)//0-114)
+        public void setSpeed(int speed,byte id)//0-114)
         {
 
             int valhex = speed * 0x3ff / 114;
@@ -210,17 +195,10 @@ namespace GadgeteerApp1
             buffer[6] = (byte)(valhex & 0xFF);
             buffer[7] = (byte)(valhex >> 8);
 
-            int CS = 0;
-            int NbOctTrametVitesse = 9;
 
-            for (int i = 2; i < NbOctTrametVitesse - 1; i++)
-            {
-                CS += buffer[i];
-            }
-
-            buffer[8] = (byte)(~CS & 0xff);
+            calculateCheckSum(3,buffer);
             serie.Write(buffer);
-            Thread.Sleep(2);
+            getStatusPacket();
 
         }
 
@@ -234,5 +212,23 @@ namespace GadgeteerApp1
             string msg = new string(System.Text.Encoding.UTF8.GetChars(buffer));
             return msg;
         }
+
+       void calculateCheckSum(int nbParameters, byte[] buff)
+        {
+            int checkSum = 0;
+
+            for (int i = 2; i < 5 + nbParameters ; i++)
+            {
+                checkSum += buff[i];
+            }
+
+            buff[5 + nbParameters] = (byte)(~checkSum & 0xff);
+            
+        }
+
+       void getStatusPacket()
+       {
+           displayText(ReceiveBuff(), GT.Color.White);           
+       }
     }
 }
