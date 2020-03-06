@@ -21,7 +21,7 @@ using GadgeteerApp1;
     
      void rotateEngine(string bind)
          {
-            string msg = selector.ReceiveBuff(); //On reçoit et lit le buffer envoyé par la Xbee
+            string msg = selector.receiveBuffXbee(); //On reçoit et lit le buffer envoyé par la Xbee
             string bindPressed = bind ; //On attribue une touche pour faire avancer l'Hexapode
             bool command_rotate=true;
 
@@ -44,7 +44,7 @@ using GadgeteerApp1;
 
      void setEngineSpeed()
      {  
-         string msg = selector.ReceiveBuff();
+         string msg = selector.receiveBuffXbee();
          string speed = "vitesse";
          bool command_speed = true;
 

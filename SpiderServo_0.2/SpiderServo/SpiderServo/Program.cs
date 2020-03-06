@@ -50,7 +50,7 @@ namespace GadgeteerApp1
         void SerialLine_DataReceived(GT.Interfaces.Serial sender, System.IO.Ports.SerialData data)
         {
             var font = Resources.GetFont(Resources.FontResources.NinaB);
-            string msg = ReceiveBuff();
+            string msg = receiveBuffXbee();
 
             string rotate = "tourner";
             string speed = "vitesse";
@@ -142,9 +142,11 @@ namespace GadgeteerApp1
 
            byte[] buffer = new byte[] { 0xFF, 0xFF, 0x01, 0x04, 0x03, 0x19, 0x00, 0xDE };
            serie.Write(buffer);
-           Thread.Sleep(3000);
+           rotateEngine(0, 0x01);
+           Thread.Sleep(1000);
            byte[] buffer2 = new byte[] { 0xFF, 0xFF, 0x02, 0x04, 0x03, 0x19, 0x00, 0xDD };
-          serie.Write(buffer2);
+           serie.Write(buffer2);
+           rotateEngine(0, 0x02);
            displayText("Led: OFF", GT.Color.White);
            Thread.Sleep(200);
            
@@ -156,7 +158,7 @@ namespace GadgeteerApp1
         {
             byte[] buffer = new byte[] { 0xFF, 0xFF, 0x01, 0x04, 0x03, 0x19, 0x01, 0xDD };
             serie.Write(buffer);
-            Thread.Sleep(3000);
+            Thread.Sleep(1000);
             byte[] buffer2 = new byte[] { 0xFF, 0xFF, 0x02, 0x04, 0x03, 0x19, 0x01, 0xDC };
             serie.Write(buffer2);
             displayText("Led: ON", GT.Color.White);
@@ -184,7 +186,7 @@ namespace GadgeteerApp1
 
             calculateCheckSum(3, buffer);
             serie.Write(buffer);
-            getStatusPacket();
+            
         }
 
         public void setSpeed(int speed,byte id)//0-114)
@@ -198,11 +200,11 @@ namespace GadgeteerApp1
 
             calculateCheckSum(3,buffer);
             serie.Write(buffer);
-            getStatusPacket();
+            
 
         }
 
-        public string ReceiveBuff()
+        public string receiveBuffXbee()
         {
             int buff = xBee.SerialLine.BytesToRead;
 
@@ -226,9 +228,11 @@ namespace GadgeteerApp1
             
         }
 
-       void getStatusPacket()
-       {
-           displayText(ReceiveBuff(), GT.Color.White);           
+       void getStatusPacket(/*byte id*/)
+       {    
+
+           byte[] statusPacket = new byte[] { 0xFF, 0xFF, 0x01, 0x02, 0x01, 0xFB };
+           serie.Write(statusPacket); //On ping le servomoteur afin qu'il nous retourne une trame d'erreur             
        }
     }
 }
