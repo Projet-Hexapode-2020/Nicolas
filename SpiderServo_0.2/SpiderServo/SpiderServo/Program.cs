@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections;
 using System.Threading;
 using Microsoft.SPOT;
@@ -14,6 +15,7 @@ using GT = Gadgeteer;
 using GTM = Gadgeteer.Modules;
 using Gadgeteer.Modules.GHIElectronics;
 
+
 namespace GadgeteerApp1
 {
 
@@ -24,6 +26,8 @@ namespace GadgeteerApp1
         
         GT.Interfaces.Serial serie;
         uint step = 2;
+        GT.Interfaces.DigitalOutput S11P3dirAx12;
+        
 
         void ProgramStarted()
         {
@@ -42,10 +46,15 @@ namespace GadgeteerApp1
             button.ButtonPressed += new Button.ButtonEventHandler(button_ButtonPressed);
             button.ButtonReleased += new Button.ButtonEventHandler(button_ButtonReleased);
 
+            S11P3dirAx12 = extender.SetupDigitalOutput(GT.Socket.Pin.Three, true); //False pour lire, True pour écrire
+            S11P3dirAx12.Write(true);
+
             //Output to see if the controller has received the frame
             xBee.SerialLine.WriteLine("Connected");
             
         }
+
+        
 
         void SerialLine_DataReceived(GT.Interfaces.Serial sender, System.IO.Ports.SerialData data)
         {
@@ -55,9 +64,15 @@ namespace GadgeteerApp1
             string rotate = "tourner";
             string speed = "vitesse";
             string avancer = "avancer";
+            string reculer = "reculer";
+            string droite = "droite";
+            string gauche = "gauche";
             bool command_rotate = true;
             bool command_speed = true;
             bool command_avancer = true;
+            bool command_reculer = true;
+            bool command_droite = true;
+            bool command_gauche = true;
 
             for (int i = 0; i < rotate.Length; i++)
             {
@@ -65,8 +80,8 @@ namespace GadgeteerApp1
                 {
                     command_rotate = false;
                     break;
-                }        
- 
+                }
+
             }
 
             for (int i = 0; i < speed.Length; i++)
@@ -78,21 +93,75 @@ namespace GadgeteerApp1
                 }
             }
 
-            for (int i = 0; i < avancer.Length;i++)
+            for (int i = 0; i < avancer.Length; i++)
             {
                 if ((msg[i] != avancer[i] || (msg.Length > 10)))
                 {
                     command_avancer = false;
                     break;
                 }
-                    
+
             }
-           
+
+            for (int i = 0; i < reculer.Length; i++)
+            {
+                if ((msg[i] != reculer[i] || (msg.Length > 10)))
+                {
+                    command_reculer = false;
+                    break;
+                }
+
+            }
+
+            for (int i = 0; i < droite.Length; i++)
+            {
+                if ((msg[i] != droite[i] || (msg.Length > 10)))
+                {
+                    command_droite = false;
+                    break;
+                }
+
+            }
+
+            for (int i = 0; i < gauche.Length; i++)
+            {
+                if ((msg[i] != gauche[i] || (msg.Length > 10)))
+                {
+                    command_gauche = false;
+                    break;
+                }
+
+            }
+
+            if ((command_gauche == true) && (command_speed == false) && (command_rotate == false))
+            {
+                int value = System.Convert.ToInt16(msg.Substring(6));
+
+                displayText("gauche: " + value, GT.Color.White);
+                Thread.Sleep(200);
+            }
+
+            if ((command_droite == true) && (command_speed == false) && (command_rotate == false))
+            {
+                int value = System.Convert.ToInt16(msg.Substring(6));
+
+                displayText("droite: " + value, GT.Color.White);
+                Thread.Sleep(200);
+            }
+
+            if ((command_reculer == true) && (command_speed == false) && (command_rotate == false))
+            {
+                int value = System.Convert.ToInt16(msg.Substring(7));
+
+                displayText("reculer: " + value, GT.Color.White);
+                Thread.Sleep(200);
+            }
+
             if ((command_avancer == true) && (command_speed == false) && (command_rotate == false))
             {
                 int value = System.Convert.ToInt16(msg.Substring(7));
 
-                displayText("Avancer: " + value ,GT.Color.White);
+                displayText("Avancer: " + value, GT.Color.White);
                 Thread.Sleep(200);
             }
 
@@ -106,7 +175,7 @@ namespace GadgeteerApp1
                 rotateEngine(value, 0x01);
                 Thread.Sleep(10);
                 rotateEngine(value, 0x02);
-            
+
                 Thread.Sleep(200);
             }
 
@@ -115,12 +184,12 @@ namespace GadgeteerApp1
                 int value = System.Convert.ToInt16(msg.Substring(7));
                 displayText("Speed: " + value + " ms", GT.Color.White);
 
-                setSpeed(value,0x01);
+                setSpeed(value, 0x01);
                 Thread.Sleep(10);
-                setSpeed(value,0x02);
+                setSpeed(value, 0x02);
                 Thread.Sleep(200);
             }
-            
+
 
         }
 
@@ -158,9 +227,13 @@ namespace GadgeteerApp1
         {
             byte[] buffer = new byte[] { 0xFF, 0xFF, 0x01, 0x04, 0x03, 0x19, 0x01, 0xDD };
             serie.Write(buffer);
+            rotateEngine(300, 0x01);
             Thread.Sleep(1000);
             byte[] buffer2 = new byte[] { 0xFF, 0xFF, 0x02, 0x04, 0x03, 0x19, 0x01, 0xDC };
             serie.Write(buffer2);
+            rotateEngine(300, 0x02);
+            Thread.Sleep(2);
+            getStatusPacket();
             displayText("Led: ON", GT.Color.White);
             Thread.Sleep(200);
 
@@ -229,10 +302,37 @@ namespace GadgeteerApp1
         }
 
        void getStatusPacket(/*byte id*/)
-       {    
-
+       {
+           
            byte[] statusPacket = new byte[] { 0xFF, 0xFF, 0x01, 0x02, 0x01, 0xFB };
-           serie.Write(statusPacket); //On ping le servomoteur afin qu'il nous retourne une trame d'erreur             
+           serie.Write(statusPacket); //On ping le servomoteur afin qu'il nous retourne une trame d'erreur   
+
+
+           S11P3dirAx12.Write(false);//Passage en mode lecture
+           Thread.Sleep(10);//On attend un certain délai avant de lire 
+      
+           int nbOctetReponse = serie.BytesToRead;
+           int[] intDisplay = new int[nbOctetReponse];
+           string convert;
+           byte[] receivePacket = new byte[nbOctetReponse];
+           Debug.Print("Nb octets recus : " + nbOctetReponse.ToString());
+           serie.Read(receivePacket,0,nbOctetReponse);
+           displayText("Nombres d'octets reçus : " + nbOctetReponse.ToString(), GT.Color.Magenta);
+
+           for (int i = 0; i < nbOctetReponse; i++)
+           {
+               intDisplay[i] = (int)receivePacket[i];
+              convert = intDisplay[i].ToString("X");
+               displayText(convert, GT.Color.Green);
+               Debug.Print(intDisplay[i].ToString());
+               Debug.Print(convert);
+           }
+
+           
+
+           S11P3dirAx12.Write(true);
+           
+
        }
     }
 }
