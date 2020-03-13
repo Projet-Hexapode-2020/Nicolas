@@ -233,7 +233,8 @@ namespace GadgeteerApp1
             serie.Write(buffer2);
             rotateEngine(300, 0x02);
             Thread.Sleep(2);
-            getStatusPacket();
+            getStatusPacket(0x01);
+            getStatusPacket(0x02);
             displayText("Led: ON", GT.Color.White);
             Thread.Sleep(200);
 
@@ -298,13 +299,15 @@ namespace GadgeteerApp1
             }
 
             buff[5 + nbParameters] = (byte)(~checkSum & 0xff);
-            
+           
         }
 
-       void getStatusPacket(/*byte id*/)
+       void getStatusPacket(byte id)
        {
            
-           byte[] statusPacket = new byte[] { 0xFF, 0xFF, 0x01, 0x02, 0x01, 0xFB };
+           byte[] statusPacket = new byte[] { 0xFF, 0xFF, id, 0x02, 0x01, 0 };
+           calculateCheckSum(0, statusPacket);
+           Thread.Sleep(2);
            serie.Write(statusPacket); //On ping le servomoteur afin qu'il nous retourne une trame d'erreur   
 
 
@@ -313,22 +316,17 @@ namespace GadgeteerApp1
       
            int nbOctetReponse = serie.BytesToRead;
            int[] intDisplay = new int[nbOctetReponse];
-           string convert;
            byte[] receivePacket = new byte[nbOctetReponse];
-           Debug.Print("Nb octets recus : " + nbOctetReponse.ToString());
+           string convert;
            serie.Read(receivePacket,0,nbOctetReponse);
-           displayText("Nombres d'octets reçus : " + nbOctetReponse.ToString(), GT.Color.Magenta);
+           displayText("Nombres d'octets recus : " + nbOctetReponse.ToString(), GT.Color.Magenta);
 
            for (int i = 0; i < nbOctetReponse; i++)
            {
                intDisplay[i] = (int)receivePacket[i];
-              convert = intDisplay[i].ToString("X");
+               convert = intDisplay[i].ToString("X");
                displayText(convert, GT.Color.Green);
-               Debug.Print(intDisplay[i].ToString());
-               Debug.Print(convert);
            }
-
-           
 
            S11P3dirAx12.Write(true);
            
