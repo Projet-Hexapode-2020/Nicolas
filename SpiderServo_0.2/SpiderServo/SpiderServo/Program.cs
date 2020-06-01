@@ -23,11 +23,11 @@ namespace GadgeteerApp1
     public partial class Program
     {
         // This method is run when the mainboard is powered up or reset.   
-        
+
         GT.Interfaces.Serial serie;
         uint step = 2;
         GT.Interfaces.DigitalOutput S11P3dirAx12;
-        
+
 
         void ProgramStarted()
         {
@@ -38,6 +38,7 @@ namespace GadgeteerApp1
             displayText("Debug: ", GT.Color.Red);
             serie = new GT.Interfaces.Serial(GT.Socket.GetSocket(11, true, null, string.Empty), 200000, GT.Interfaces.Serial.SerialParity.None, GT.Interfaces.Serial.SerialStopBits.One, 8, GT.Interfaces.Serial.HardwareFlowControl.NotRequired, null);
             serie.Open();
+
 
             xBee.Configure(115200, GT.Interfaces.Serial.SerialParity.None, GT.Interfaces.Serial.SerialStopBits.One, 8);
             xBee.SerialLine.Open();
@@ -51,13 +52,14 @@ namespace GadgeteerApp1
 
             //Output to see if the controller has received the frame
             xBee.SerialLine.WriteLine("Connected");
-            
+
         }
 
-        
+
 
         void SerialLine_DataReceived(GT.Interfaces.Serial sender, System.IO.Ports.SerialData data)
         {
+            //Communication avec l'IHM en xBee
             var font = Resources.GetFont(Resources.FontResources.NinaB);
             string msg = receiveBuffXbee();
 
@@ -137,7 +139,8 @@ namespace GadgeteerApp1
             {
                 int value = System.Convert.ToInt16(msg.Substring(6));
 
-                displayText("gauche: " + value, GT.Color.White);
+                displayText("Gauche", GT.Color.White);
+                turnLeft();
                 Thread.Sleep(200);
             }
 
@@ -145,7 +148,8 @@ namespace GadgeteerApp1
             {
                 int value = System.Convert.ToInt16(msg.Substring(6));
 
-                displayText("droite: " + value, GT.Color.White);
+                displayText("Droite" + value, GT.Color.White);
+                turnRight();
                 Thread.Sleep(200);
             }
 
@@ -153,7 +157,8 @@ namespace GadgeteerApp1
             {
                 int value = System.Convert.ToInt16(msg.Substring(7));
 
-                displayText("reculer: " + value, GT.Color.White);
+                displayText("Reculer", GT.Color.White);
+                goBackward();
                 Thread.Sleep(200);
             }
 
@@ -161,21 +166,15 @@ namespace GadgeteerApp1
             {
                 int value = System.Convert.ToInt16(msg.Substring(7));
 
-                displayText("Avancer: " + value, GT.Color.White);
+                displayText("Avancer", GT.Color.White);
+                goForward();
                 Thread.Sleep(200);
             }
 
             if ((command_rotate == true) && (command_speed == false))
             {
                 int value = System.Convert.ToInt16(msg.Substring(7));
-
                 displayText("Rotation: " + value + " degres", GT.Color.White);
-
-
-                rotateEngine(value, 0x01);
-                Thread.Sleep(10);
-                rotateEngine(value, 0x02);
-
                 Thread.Sleep(200);
             }
 
@@ -209,61 +208,62 @@ namespace GadgeteerApp1
 
             }
 
-           byte[] buffer = new byte[] { 0xFF, 0xFF, 0x01, 0x04, 0x03, 0x19, 0x00, 0xDE };
-           serie.Write(buffer);
-           rotateEngine(0, 0x01);
-           Thread.Sleep(1000);
-           byte[] buffer2 = new byte[] { 0xFF, 0xFF, 0x02, 0x04, 0x03, 0x19, 0x00, 0xDD };
-           serie.Write(buffer2);
-           rotateEngine(0, 0x02);
-           displayText("Led: OFF", GT.Color.White);
-           Thread.Sleep(200);
-           
-            
+
+            //First paw to move comes back to its initial position
+            rotateEngine(150, 0x0B);
+          
+            Thread.Sleep(100);
+            rotateEngine(200, 0x09);
+            Thread.Sleep(400);
+              rotateEngine(150, 0x07);
+            getStatusPacket(0x07);
+            displayText("Led: OFF", GT.Color.White);
+            Thread.Sleep(200);
+
+
 
         }
 
         void button_ButtonPressed(Button sender, Button.ButtonState state)
         {
-            byte[] buffer = new byte[] { 0xFF, 0xFF, 0x01, 0x04, 0x03, 0x19, 0x01, 0xDD };
-            serie.Write(buffer);
-            rotateEngine(300, 0x01);
-            Thread.Sleep(1000);
-            byte[] buffer2 = new byte[] { 0xFF, 0xFF, 0x02, 0x04, 0x03, 0x19, 0x01, 0xDC };
-            serie.Write(buffer2);
-            rotateEngine(300, 0x02);
-            Thread.Sleep(2);
-            getStatusPacket(0x01);
-            getStatusPacket(0x02);
+            //First paw to move => N°2
+            setSpeed(20, 0x07);
+            setSpeed(20, 0x09);
+            setSpeed(20, 0x0B);
+            rotateEngine(80, 0x0B);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x09);
+            Thread.Sleep(300);
+            rotateEngine(200, 0x07);
+            Thread.Sleep(500);
             displayText("Led: ON", GT.Color.White);
             Thread.Sleep(200);
-
         }
 
         public void displayText(string msg, GT.Color color)
         {
-            var font = Resources.GetFont(Resources.FontResources.small);          
+            var font = Resources.GetFont(Resources.FontResources.small);
             display_T35.SimpleGraphics.DisplayText(msg, font, color, 4, step);
             step += 12;
 
         }
 
-       
+
 
         public void rotateEngine(int degre, byte id)
         {
             int valhex = degre * 0x3ff / 300;
-            byte[] buffer = new byte[] { 0xFF, 0xFF, id , 0x05, 0x03, 0x1E, 0, 0, 0 };
-           
+            byte[] buffer = new byte[] { 0xFF, 0xFF, id, 0x05, 0x03, 0x1E, 0, 0, 0 };
+
             buffer[6] = (byte)(valhex & 0xff);
             buffer[7] = (byte)(valhex >> 8);
 
             calculateCheckSum(3, buffer);
             serie.Write(buffer);
-            
+
         }
 
-        public void setSpeed(int speed,byte id)//0-114)
+        public void setSpeed(int speed, byte id)//0-114)
         {
 
             int valhex = speed * 0x3ff / 114;
@@ -272,9 +272,9 @@ namespace GadgeteerApp1
             buffer[7] = (byte)(valhex >> 8);
 
 
-            calculateCheckSum(3,buffer);
+            calculateCheckSum(3, buffer);
             serie.Write(buffer);
-            
+
 
         }
 
@@ -289,48 +289,400 @@ namespace GadgeteerApp1
             return msg;
         }
 
-       void calculateCheckSum(int nbParameters, byte[] buff)
+        void calculateCheckSum(int nbParameters, byte[] buff)
         {
             int checkSum = 0;
 
-            for (int i = 2; i < 5 + nbParameters ; i++)
+            for (int i = 2; i < 5 + nbParameters; i++)
             {
                 checkSum += buff[i];
             }
 
             buff[5 + nbParameters] = (byte)(~checkSum & 0xff);
-           
+
         }
 
-       void getStatusPacket(byte id)
-       {
-           
-           byte[] statusPacket = new byte[] { 0xFF, 0xFF, id, 0x02, 0x01, 0 };
-           calculateCheckSum(0, statusPacket);
-           Thread.Sleep(2);
-           serie.Write(statusPacket); //On ping le servomoteur afin qu'il nous retourne une trame d'erreur   
+        void getStatusPacket(byte id)
+        {
+
+            byte[] statusPacket = new byte[] { 0xFF, 0xFF, id, 0x02, 0x01, 0 };
+            calculateCheckSum(0, statusPacket);
+            Thread.Sleep(2);
+            serie.Write(statusPacket); //On ping le servomoteur afin qu'il nous retourne une trame d'erreur   
 
 
-           S11P3dirAx12.Write(false);//Passage en mode lecture
-           Thread.Sleep(10);//On attend un certain délai avant de lire 
-      
-           int nbOctetReponse = serie.BytesToRead;
-           int[] intDisplay = new int[nbOctetReponse];
-           byte[] receivePacket = new byte[nbOctetReponse];
-           string convert;
-           serie.Read(receivePacket,0,nbOctetReponse);
-           displayText("Nombres d'octets recus : " + nbOctetReponse.ToString(), GT.Color.Magenta);
+            S11P3dirAx12.Write(false);//Passage en mode lecture
+            Thread.Sleep(10);//On attend un certain délai avant de lire 
 
-           for (int i = 0; i < nbOctetReponse; i++)
-           {
-               intDisplay[i] = (int)receivePacket[i];
-               convert = intDisplay[i].ToString("X");
-               displayText(convert, GT.Color.Green);
-           }
+            int nbOctetReponse = serie.BytesToRead;
+            int[] intDisplay = new int[nbOctetReponse];
+            byte[] receivePacket = new byte[nbOctetReponse];
+            string convert;
+            serie.Read(receivePacket, 0, nbOctetReponse);
+            displayText("Nombres d'octets recus : " + nbOctetReponse.ToString(), GT.Color.Magenta);
 
-           S11P3dirAx12.Write(true);
-           
+            for (int i = 0; i < nbOctetReponse; i++)
+            {
+                intDisplay[i] = (int)receivePacket[i];
+                convert = intDisplay[i].ToString("X");
+                displayText(convert, GT.Color.Green);
+            }
 
+            S11P3dirAx12.Write(true);
+
+
+        }
+
+        //--Movement section--//
+        //--Forward--//
+
+        void goForward()
+        {
+            //First paw to move => Paw n°3
+            rotateEngine(200, 0x07);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x09);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x0B);
+            Thread.Sleep(500);
+            //Second paw to move => Paw n° 6
+            rotateEngine(200, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x12);
+            Thread.Sleep(500);
+            //First paw to move comes back to its initial position
+            rotateEngine(150, 0x07);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x09);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x0B);
+            //Third paw to move => Paw n°1
+            rotateEngine(200, 0x01);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x05);
+            Thread.Sleep(500);
+            //Second paw to move comes back to its initial position
+            rotateEngine(150, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x12);
+            Thread.Sleep(500);
+            //Fourth paw to move => Paw n°4
+            rotateEngine(200, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x0C);
+            Thread.Sleep(500);
+            //Third paw to move comes back to its initial position 
+            rotateEngine(150, 0x01);
+            Thread.Sleep(300);
+            rotateEngine(200, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x05);
+            Thread.Sleep(500);
+            //Fifth paw to move => Paw n°5
+            rotateEngine(200, 0x0D);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0F);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x11);
+            Thread.Sleep(500);
+            //Fourth paw to move comes back to its initial position
+            rotateEngine(150, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x0C);
+            Thread.Sleep(500);
+            //Sixth paw to move => Paw n°2
+            rotateEngine(200, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x06);
+            //Fifth paw to move comes back to its initial position
+            rotateEngine(150, 0x0D);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x0F);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x11);
+            Thread.Sleep(500);
+            //Sixth paw to move comes back to its initial position
+            rotateEngine(150, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x06);
+        }
+
+        //--Go backward--//
+        void goBackward()
+        {
+            //First paw to move => N°2
+            rotateEngine(80, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x06);
+            Thread.Sleep(500);
+            //Second paw to move => N°5
+            rotateEngine(80, 0x0D);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0F);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x11);
+            Thread.Sleep(500);
+            //First paw to move comes back to its initial position
+            rotateEngine(150, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x06);
+            Thread.Sleep(500);
+            //Third paw to move => N°4
+            rotateEngine(80, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x0C);
+            Thread.Sleep(500);
+            //Second paw to move comes back to its initial position
+            rotateEngine(150, 0x0D);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x0F);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x11);
+            //Fourth paw to move => N°1
+            rotateEngine(80, 0x01);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x05);
+            Thread.Sleep(500);
+            //Third paw to move comes back to its initial position
+            rotateEngine(150, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x0C);
+            Thread.Sleep(500);
+            //Fifth paw to move => N°6
+            rotateEngine(80, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x12);
+            Thread.Sleep(500);
+            //Fourth paw to move comes back to its initial position
+            rotateEngine(150, 0x01);
+            Thread.Sleep(300);
+            rotateEngine(200, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x05);
+            Thread.Sleep(500);
+            //Sixth paw to move => N°3
+            rotateEngine(200, 0x09);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0B);
+            Thread.Sleep(500);
+            rotateEngine(80, 0x07);
+            Thread.Sleep(500);
+            //Fifth paw to move comes back to its initial position
+            rotateEngine(150, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x12);
+            Thread.Sleep(500);
+            //Sixth paw to move comes back to its initial position
+            rotateEngine(150, 0x07);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x0B);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x09);
+
+        }
+
+        void turnLeft()
+        {
+           //First paw to move => Paw n°3
+            rotateEngine(200, 0x07);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x09);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x0B);
+            Thread.Sleep(500);
+           //Second paw to move => Paw n°6
+            rotateEngine(80, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x12);
+            Thread.Sleep(500);
+          //First paw to move comes back to its initial position
+            rotateEngine(150, 0x07);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x09);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x0B);
+         //Third paw to move => Paw n°1
+            rotateEngine(200, 0x01);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x05);
+            Thread.Sleep(500);
+        //Second paw to move comes back to its initial position
+            rotateEngine(150, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x12);
+            Thread.Sleep(500);
+        //Fourth paw to move => Paw n°4
+            rotateEngine(80, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x0C);
+            Thread.Sleep(500);
+        //Third paw to move comes back to its initial position 
+            rotateEngine(150, 0x01);
+            Thread.Sleep(300);
+            rotateEngine(200, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x05);
+            Thread.Sleep(500);
+        //Fifth paw to move => N°5
+            rotateEngine(200, 0x0D);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0F);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x11);
+            Thread.Sleep(500);
+        //Fourth paw to move comes back to its initial position
+            rotateEngine(150, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x0C);
+            Thread.Sleep(500);
+        //Sixth paw to move => N°2
+            rotateEngine(80, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x06);
+            Thread.Sleep(500);
+        //Fifth paw to move comes back to its initial position
+            rotateEngine(150, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x12);
+            Thread.Sleep(500);
+        //Sixth paw to move comes back to its initial position
+            rotateEngine(150, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x06);
+            Thread.Sleep(500);
        }
+
+        void turnRight() {
+            //First paw to move => Paw n°3
+            rotateEngine(80, 0x07);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x09);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x0B);
+            Thread.Sleep(500);
+            //Second paw to move => Paw n°6
+            rotateEngine(200, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x12);
+            Thread.Sleep(500);
+            //First paw to move comes back to its initial position
+            rotateEngine(150, 0x07);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x09);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x0B);
+            //Third paw to move => Paw n°1
+            rotateEngine(80, 0x01);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x05);
+            Thread.Sleep(500);
+            //Second paw to move comes back to its initial position
+            rotateEngine(150, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x12);
+            Thread.Sleep(500);
+            //Fourth paw to move => Paw n°4
+            rotateEngine(200, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x0C);
+            Thread.Sleep(500);
+            //Third paw to move comes back to its initial position 
+            rotateEngine(150, 0x01);
+            Thread.Sleep(300);
+            rotateEngine(200, 0x03);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x05);
+            Thread.Sleep(500);
+            //Fifth paw to move => N°5
+            rotateEngine(80, 0x0D);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x0F);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x11);
+            Thread.Sleep(500);
+            //Fourth paw to move comes back to its initial position
+            rotateEngine(150, 0x08);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x0A);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x0C);
+            Thread.Sleep(500);
+            //Sixth paw to move => N°2
+            rotateEngine(200, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(120, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(80, 0x06);
+            Thread.Sleep(500);
+            //Fifth paw to move comes back to its initial position
+            rotateEngine(150, 0x0E);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x10);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x12);
+            Thread.Sleep(500);
+            //Sixth paw to move comes back to its initial position
+            rotateEngine(150, 0x02);
+            Thread.Sleep(100);
+            rotateEngine(200, 0x04);
+            Thread.Sleep(300);
+            rotateEngine(150, 0x06);
+            Thread.Sleep(500);
+
+        }
+
+
     }
 }
